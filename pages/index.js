@@ -1,57 +1,55 @@
 // pages/index.js
-import { useState } from 'react';
-import { Page, Card, TextField, Button, Banner } from '@shopify/polaris';
+import {useState} from 'react';
+import {Page, Card, TextField, Button, Banner, InlineStack, Text} from '@shopify/polaris';
+import ProductPicker from '../components/ProductPicker';
 
 export default function HomePage() {
   const [variantId, setVariantId] = useState('');
   const [quantity, setQuantity] = useState('1');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const createCheckout = async () => {
+  async function createCheckout() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/checkout/create', {
+      const r = await fetch('/api/checkout/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ variantId, quantity }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to create checkout');
-      // Open checkout in new tab — Shopify will automatically show Apple Pay/Google Pay/Shop Pay if supported
-      window.open(json.webUrl, '_blank');
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error || 'Failed to create checkout');
+      window.open(json.webUrl, '_blank'); // Shopify shows Apple/Google/Shop Pay if supported
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <Page title="Zyppi Tap2Buy">
-      <Card sectioned>
-        {error && (
-          <Banner status="critical">
+      {error && (
+        <Card sectioned>
+          <Banner tone="critical" title="Error">
             <p>{error}</p>
           </Banner>
-        )}
-        <TextField
-          label="Variant ID (gid://shopify/ProductVariant/123456...)"
-          value={variantId}
-          onChange={setVariantId}
-          autoComplete="off"
-        />
-        <TextField
-          label="Quantity"
-          type="number"
-          value={quantity}
-          onChange={setQuantity}
-          autoComplete="off"
-        />
-        <Button primary loading={loading} onClick={createCheckout}>
-          Create checkout
-        </Button>
+        </Card>
+      )}
+
+      <ProductPicker onPick={({variant}) => setVariantId(variant.id)} />
+
+      <Card sectioned>
+        <Text as="h3" variant="headingMd">Checkout</Text>
+        <div style={{height:12}} />
+        <TextField label="Selected Variant GID" value={variantId} onChange={setVariantId} autoComplete="off" />
+        <TextField label="Quantity" type="number" value={quantity} onChange={setQuantity} autoComplete="off" />
+        <div style={{height:12}} />
+        <InlineStack gap="200">
+          <Button primary loading={loading} onClick={createCheckout}>Create checkout</Button>
+          <Button url="/api/health" target="_blank">API health</Button>
+        </InlineStack>
       </Card>
     </Page>
   );
