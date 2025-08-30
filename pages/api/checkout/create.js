@@ -5,27 +5,20 @@ export default async function handler(req, res) {
   }
 
   const { variantId, quantity = 1 } = req.body;
-
-  if (!variantId) {
-    return res.status(400).json({ error: 'variantId is required' });
-  }
+  if (!variantId) return res.status(400).json({ error: 'variantId is required' });
 
   try {
-    const domain = process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN; // e.g. mystore.myshopify.com
-    const token = process.env.STOREFRONT_API_TOKEN;           // Storefront API token
-    const apiVersion = process.env.NEXT_PUBLIC_STOREFRONT_API_VERSION || '2024-07';
+    const domain = process.env.SHOPIFY_STORE_DOMAIN;
+    const token = process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN;
+    const apiVersion = '2024-07'; // latest stable
 
     const url = `https://${domain}/api/${apiVersion}/graphql.json`;
 
     const mutation = `
       mutation checkoutCreate($lineItems: [CheckoutLineItemInput!]!) {
         checkoutCreate(input: { lineItems: $lineItems }) {
-          checkout {
-            webUrl
-          }
-          userErrors {
-            message
-          }
+          checkout { webUrl }
+          userErrors { message }
         }
       }
     `;
@@ -38,9 +31,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         query: mutation,
-        variables: {
-          lineItems: [{ variantId, quantity: parseInt(quantity, 10) }],
-        },
+        variables: { lineItems: [{ variantId, quantity: parseInt(quantity, 10) }] },
       }),
     });
 
