@@ -27,7 +27,7 @@ export default function Home() {
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>Zyppi Tap2Buy</h1>
+      <h1>Tap2Buy</h1>
 
       {/* picker on the right side of your UI */}
       <ProductPicker onSelect={handleSelect} />
