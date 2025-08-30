@@ -20,24 +20,39 @@ export default function Home() {
     setMessage(`Selected: ${val}`);
   };
 
-  const createCheckout = async () => {
-    if (!variantGid) {
-      setMessage("Please select a variant first");
-      return;
+const createCheckout = async () => {
+  if (!variantGid) {
+    setMessage("Please select a variant first");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        variantId: variantGid,
+        quantity: Number(qty) > 0 ? Number(qty) : 1,
+      }),
+    });
+
+    // Safely parse the response so we see real errors instead of "Unexpected end of JSON"
+    const ct = res.headers.get("content-type") || "";
+    const body = ct.includes("application/json") ? await res.json() : { error: await res.text() };
+
+    if (!res.ok) {
+      throw new Error(body?.error || `Request failed (${res.status})`);
     }
-    try {
-      const res = await fetch("/api/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variantId: variantGid, quantity: Number(qty) || 1 }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed");
-      window.open(data.checkoutUrl, "_blank");
-    } catch (e) {
-      setMessage(`Error: ${e.message}`);
+    if (!body?.checkoutUrl) {
+      throw new Error("No checkoutUrl in response");
     }
-  };
+
+    window.open(body.checkoutUrl, "_blank");
+  } catch (e) {
+    setMessage(`Error: ${e.message}`);
+  }
+};
+ 
 
   return (
     <div style={{ maxWidth: 720, margin: "40px auto", fontFamily: "system-ui" }}>
