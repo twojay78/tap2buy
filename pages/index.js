@@ -1,44 +1,48 @@
 // pages/index.js
-import { useState } from "react";
-import ProductPicker from "../components/ProductPicker"; // ⬅️ add this
+import { useState } from 'react';
+import { Page, Card, Banner, Button } from '@shopify/polaris';
+import ProductPicker from '../components/ProductPicker';
 
-export default function Home() {
-  const [selectedVariantGid, setSelectedVariantGid] = useState("");
-  const [qty, setQty] = useState(1);
+export default function HomePage() {
+  const [variantId, setVariantId] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Helper: accept either numeric ID or full GID and return GID
-  const toVariantGid = (val) =>
-    String(val).startsWith("gid://")
-      ? val
-      : `gid://shopify/ProductVariant/${val}`;
-
-  const handleSelect = ({ variantId, quantity }) => {
-    setSelectedVariantGid(toVariantGid(variantId));
-    setQty(quantity);
-  };
-
-  const createCheckout = async () => {
-    if (!selectedVariantGid) return alert("Pick a variant first");
-    const res = await fetch("/api/auth/callback", { method: "GET" }); // keeps Vercel warm; optional
-    // Call your existing endpoint that creates a checkout with Storefront GraphQL
-    const resp = await fetch("/api/health"); // replace with your real checkout API if you have one
-    // If you already have a function that builds the checkout URL, call it here instead.
-  };
+  async function createCheckout() {
+    if (!variantId) return setError('Please select a variant first');
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/checkout/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variantId, quantity }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Checkout failed');
+      window.open(json.webUrl, '_blank');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Tap2Buy</h1>
+    <Page title="Tap2Buy">
+      {error && (
+        <Card sectioned>
+          <Banner tone="critical">{error}</Banner>
+        </Card>
+      )}
 
-      {/* picker on the right side of your UI */}
-      <ProductPicker onSelect={handleSelect} />
-
-      <div style={{ marginTop: 16 }}>
-        <div><strong>Selected Variant GID:</strong> {selectedVariantGid || "—"}</div>
-        <div><strong>Quantity:</strong> {qty}</div>
-        <button onClick={createCheckout} disabled={!selectedVariantGid}>
-          Create checkout
-        </button>
-      </div>
-    </main>
+      <Card sectioned>
+        <ProductPicker onPick={({ variant }) => setVariantId(variant.id)} />
+        <Button primary onClick={createCheckout} loading={loading}>
+          Create Checkout
+        </Button>
+      </Card>
+    </Page>
   );
 }
