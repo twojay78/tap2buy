@@ -1,26 +1,22 @@
-// pages/api/checkout/create.js
+// /pages/api/checkout/create.js
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const { variantGid, quantity } = req.body;
+
+  if (!variantGid) {
+    return res.status(400).json({ error: "Missing variantId" });
   }
 
   try {
-    const { variantGid, quantity } = req.body || {};
-    if (!variantGid) {
-      return res.status(400).json({ error: 'Missing variantId' });
-    }
-
-    const domain = process.env.SHOPIFY_STORE_DOMAIN;
-    const token = process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN;
-
-    if (!domain || !token) {
-      return res.status(500).json({ error: 'Missing Shopify env vars' });
-    }
-
-    const query = `
-      mutation CheckoutCreate($lineItems: [CheckoutLineItemInput!]!) {
-        checkoutCreate(input: { lineItems: $lineItems }) {
+    const mutation = `
+      mutation checkoutCreate($input: CheckoutCreateInput!) {
+        checkoutCreate(input: $input) {
           checkout {
+            id
             webUrl
           }
           userErrors {
@@ -32,42 +28,54 @@ export default async function handler(req, res) {
     `;
 
     const variables = {
-      lineItems: [
-        {
-          quantity: Number(quantity || 1),
-          variantId: variantGid, // full GID
-        },
-      ],
+      input: {
+        lineItems: [
+          {
+            variantId: variantGid,
+            quantity: Number(quantity) || 1,
+          },
+        ],
+        note: "Created by Tap2Buy",   // 👈 order note
+        customAttributes: [
+          { key: "Source", value: "Tap2Buy App" }, // 👈 marker
+        ],
+      },
     };
 
-    const resp = await fetch(`https://${domain}/api/2024-07/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Storefront-Access-Token': token,
-      },
-      body: JSON.stringify({ query, variables }),
-    });
+    const response = await fetch(
+      `https://${process.env.SHOPIFY_STORE_DOMAIN}/api/2023-07/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Storefront-Access-Token": process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN,
+        },
+        body: JSON.stringify({ query: mutation, variables }),
+      }
+    );
 
-    const json = await resp.json();
+    const result = await response.json();
 
-    // Optional: log for debugging (view in Vercel runtime logs)
-    console.log('checkoutCreate response', JSON.stringify(json));
-
-    const errors = json?.data?.checkoutCreate?.userErrors;
-    const url = json?.data?.checkoutCreate?.checkout?.webUrl;
-
-    if (errors && errors.length) {
-      return res.status(400).json({ error: errors.map(e => e.message).join(', ') });
+    if (result.errors || result.data?.checkoutCreate?.userErrors?.length) {
+      console.error("Shopify Errors:", result.errors || result.data.checkoutCreate.userErrors);
+      return res.status(400).json({
+        error: "Shopify error",
+        details: result.errors || result.data.checkoutCreate.userErrors,
+      });
     }
 
-    if (!url) {
-      return res.status(500).json({ error: 'No checkout URL returned' });
+    const checkout = result.data.checkoutCreate.checkout;
+
+    if (!checkout?.webUrl) {
+      return res.status(500).json({ error: "No checkout URL returned" });
     }
 
-    return res.status(200).json({ checkoutUrl: url });
+    // 👇 NEW: log the checkout URL in Vercel
+    console.log("✅ Tap2Buy Checkout created:", checkout.webUrl);
+
+    res.status(200).json({ checkoutUrl: checkout.webUrl });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: err.message || 'Server error' });
+    console.error("Server error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 }
