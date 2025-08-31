@@ -1,102 +1,154 @@
+// pages/index.js
 import { useState } from "react";
+import {
+  Page,
+  Layout,
+  Card,
+  Text,
+  TextField,
+  Button,
+  Banner,
+  InlineStack,
+  Link,
+} from "@shopify/polaris";
 
-export default function Home() {
+export default function HomePage() {
   const [variantInput, setVariantInput] = useState("");
   const [variantGid, setVariantGid] = useState("");
-  const [qty, setQty] = useState(1);
-  const [message, setMessage] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
 
-  // Convert the input into a proper GID and store it
-  const useVariant = () => {
-    let val = variantInput.trim();
-    if (!val) {
-      setMessage("Please enter a variant ID");
-      return;
-    }
-    // Accept numeric or full GID
-    if (/^\d+$/.test(val)) {
-      val = `gid://shopify/ProductVariant/${val}`;
-    }
-    setVariantGid(val);
-    setMessage(`Selected: ${val}`);
+  const normalizeVariantId = (val) => {
+    const v = (val || "").trim();
+    if (!v) return "";
+    // accept either numeric ID or full GID
+    return /^\d+$/.test(v) ? `gid://shopify/ProductVariant/${v}` : v;
   };
 
-  // Create checkout by calling our API route
-  const createCheckout = async () => {
-    if (!variantGid) {
-      setMessage("Please select a variant first");
+  const handleUseVariant = () => {
+    setError("");
+    setCheckoutUrl("");
+    const gid = normalizeVariantId(variantInput);
+    if (!gid) {
+      setError("Please enter a variant ID.");
       return;
     }
+    setVariantGid(gid);
+  };
 
+  const createCheckout = async () => {
+    setError("");
+    setCheckoutUrl("");
+    if (!variantGid) {
+      setError("Please select a variant first.");
+      return;
+    }
+    setLoading(true);
     try {
       const res = await fetch("/api/checkout/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           variantGid,
-          quantity: Number(qty || 1),
+          quantity: Number(quantity || 1),
         }),
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Request failed (${res.status}): ${text}`);
-      }
+      const ct = res.headers.get("content-type") || "";
+      const body = ct.includes("application/json")
+        ? await res.json()
+        : { error: await res.text() };
 
-      const data = await res.json(); // { checkoutUrl: "https://..." }
-      window.open(data.checkoutUrl, "_blank");
-    } catch (err) {
-      console.error(err);
-      setMessage(`Error: ${err.message}`);
+      if (!res.ok) throw new Error(body?.error || `Request failed (${res.status})`);
+      if (!body?.checkoutUrl) throw new Error("No checkout URL returned.");
+
+      setCheckoutUrl(body.checkoutUrl);
+      // Open in a new tab right away
+      window.open(body.checkoutUrl, "_blank");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: 720, margin: "40px auto", fontFamily: "system-ui" }}>
-      <h1>Tap2Buy</h1>
+    <Page title="Tap2Buy">
+      <Layout>
 
-      <div style={{ border: "1px solid #ddd", padding: 16, borderRadius: 8, marginTop: 12 }}>
-        <label style={{ display: "block", fontWeight: 600, marginBottom: 8 }}>
-          Select a product variant
-        </label>
+        {error ? (
+          <Layout.Section>
+            <Banner tone="critical" title="Something went wrong">
+              <p>{error}</p>
+            </Banner>
+          </Layout.Section>
+        ) : null}
 
-        <input
-          placeholder="Variant ID (GID or number)"
-          value={variantInput}
-          onChange={(e) => setVariantInput(e.target.value)}
-          style={{ width: "100%", padding: 10, border: "1px solid #ccc", borderRadius: 6 }}
-        />
+        {checkoutUrl ? (
+          <Layout.Section>
+            <Banner tone="success" title="Checkout created">
+              <p>
+                Your checkout is ready.{" "}
+                <Link url={checkoutUrl} external>
+                  Open checkout
+                </Link>
+              </p>
+            </Banner>
+          </Layout.Section>
+        ) : null}
 
-        <button onClick={useVariant} style={{ marginTop: 10, padding: "8px 12px" }}>
-          Use this variant
-        </button>
+        <Layout.Section>
+          <Card>
+            <div style={{ padding: 16, display: "grid", gap: 12 }}>
+              <Text as="h2" variant="headingMd">
+                Select a product variant
+              </Text>
+              <TextField
+                label="Variant ID"
+                helpText="Paste a numeric Variant ID or a full GID (gid://shopify/ProductVariant/...)."
+                value={variantInput}
+                onChange={setVariantInput}
+                autoComplete="off"
+              />
+              <InlineStack gap="300">
+                <Button onClick={handleUseVariant}>Use this variant</Button>
+                <Text as="span" tone="subdued">
+                  Selected: {variantGid || "—"}
+                </Text>
+              </InlineStack>
+            </div>
+          </Card>
+        </Layout.Section>
 
-        <div style={{ marginTop: 12, color: "#555" }}>
-          <strong>Selected Variant GID:</strong> {variantGid || "—"}
-        </div>
-      </div>
+        <Layout.Section>
+          <Card>
+            <div style={{ padding: 16, display: "grid", gap: 12 }}>
+              <Text as="h2" variant="headingMd">
+                Create checkout
+              </Text>
+              <TextField
+                label="Quantity"
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={setQuantity}
+                autoComplete="off"
+              />
+              <InlineStack gap="200">
+                <Button primary loading={loading} onClick={createCheckout}>
+                  Create checkout
+                </Button>
+                <Button url="/api/health" target="_blank" variant="secondary">
+                  API health
+                </Button>
+              </InlineStack>
+            </div>
+          </Card>
+        </Layout.Section>
 
-      <div style={{ border: "1px solid #ddd", padding: 16, borderRadius: 8, marginTop: 12 }}>
-        <label style={{ display: "block", fontWeight: 600, marginBottom: 8 }}>Quantity</label>
-        <input
-          type="number"
-          min={1}
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          style={{ width: 120, padding: 10, border: "1px solid #ccc", borderRadius: 6 }}
-        />
-        <div>
-          <button onClick={createCheckout} style={{ marginTop: 12, padding: "10px 14px" }}>
-            Create checkout
-          </button>
-        </div>
-      </div>
-
-      {message && (
-        <p style={{ marginTop: 12, color: message.startsWith("Error") ? "crimson" : "#333" }}>
-          {message}
-        </p>
-      )}
-    </div>
+      </Layout>
+    </Page>
   );
 }
