@@ -27,13 +27,11 @@ const createCheckout = async () => {
   }
 
   try {
-    const res = await fetch("/api/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        variantId: variantGid,
-        quantity: Number(qty) > 0 ? Number(qty) : 1,
-      }),
+   const res = await fetch("/api/checkout/create", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ variantId: variantGid, quantity: Number(qty) || 1 }),
+}); 
     });
 
     // Safely parse the response so we see real errors instead of "Unexpected end of JSON"
