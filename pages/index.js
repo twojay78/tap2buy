@@ -6,6 +6,7 @@ export default function Home() {
   const [qty, setQty] = useState(1);
   const [message, setMessage] = useState("");
 
+  // Convert the input into a proper GID and store it
   const useVariant = () => {
     let val = variantInput.trim();
     if (!val) {
@@ -20,43 +21,35 @@ export default function Home() {
     setMessage(`Selected: ${val}`);
   };
 
-const createCheckout = async () => {
-  if (!variantGid) {
-    setMessage("Please select a variant first");
-    return;
-  }
-
-  try {
-async function handleCreateCheckout() {
-  if (!selectedVariantGid) {
-    alert('Please select a variant first');
-    return;
-  }
-
-  try {
-    const res = await fetch('/api/checkout/create', {
-      method: 'POST',                              // 👈 important: POST not GET
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        variantGid: selectedVariantGid,            // the variant ID from Shopify
-        quantity: Number(quantity || 1),
-      }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Request failed (${res.status}): ${text}`);
+  // Create checkout by calling our API route
+  const createCheckout = async () => {
+    if (!variantGid) {
+      setMessage("Please select a variant first");
+      return;
     }
 
-    const data = await res.json();
-    window.open(data.checkoutUrl, '_blank');       // open checkout in new tab
-  } catch (err) {
-    console.error(err);
-    alert(err.message);
-  }
-}
+    try {
+      const res = await fetch("/api/checkout/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          variantGid,
+          quantity: Number(qty || 1),
+        }),
+      });
 
- 
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Request failed (${res.status}): ${text}`);
+      }
+
+      const data = await res.json(); // { checkoutUrl: "https://..." }
+      window.open(data.checkoutUrl, "_blank");
+    } catch (err) {
+      console.error(err);
+      setMessage(`Error: ${err.message}`);
+    }
+  };
 
   return (
     <div style={{ maxWidth: 720, margin: "40px auto", fontFamily: "system-ui" }}>
@@ -99,7 +92,11 @@ async function handleCreateCheckout() {
         </div>
       </div>
 
-      {message && <p style={{ marginTop: 12, color: message.startsWith("Error") ? "crimson" : "#333" }}>{message}</p>}
+      {message && (
+        <p style={{ marginTop: 12, color: message.startsWith("Error") ? "crimson" : "#333" }}>
+          {message}
+        </p>
+      )}
     </div>
   );
 }
